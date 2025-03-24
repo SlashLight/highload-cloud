@@ -41,49 +41,57 @@ pie title Страна
 ```mermaid
 erDiagram
 USER{
-    bigint ID PK
+    uuid ID PK
     text user_name
     text password
     timestamp created_at 
 }
 
-FILE{
-    bigint ID PK
+FILE_META{
+    uuid ID PK
     text file_name
     text description
     bigint size
     text type
-    bigint directory_id FK
-    bigint checksum
-    bigint owner_id
+    uuid directory_id FK
+    text checksum
+    uuid owner_id
     timestamp created_at  
 }
 
+FILE_DATA{
+    uuid ID PK, FK
+    text data
+}
+
+FILE_META ||--|| FILE_DATA : has
+
 DIRECTORY{
-    bigint ID PK
-    bigint owner_id
+    uuid ID PK
+    uuid owner_id FK
     text name
     text path
     timestamp created_at  
 }
 
 FILE_ACCESS {
-    bigint user_id FK
-    bigint file_id FK
+    uuid user_id FK
+    uuid file_id FK
     timestamp created_at
 }
 
 DIRECTORY_ACCESS {
-    bigint user_id FK
-    bigint directory_id FK
+    uuid user_id FK
+    uuid directory_id FK
     enum mode 
     timestamp created_at
 }
 
-USER }|--o{ FILE : has
+USER }|--o{ FILE_META : owns
+USER }|--o{ DIRECTORY : owns
 USER ||--o{ FILE_ACCESS : has
-FILE ||--|{ FILE_ACCESS : allows
-FILE }o--|| DIRECTORY : in
+FILE_META ||--|{ FILE_ACCESS : allows
+FILE_META }o--|| DIRECTORY : in
 USER ||--o{ DIRECTORY_ACCESS : has
 DIRECTORY ||--|{ DIRECTORY_ACCESS : allows
 ```
