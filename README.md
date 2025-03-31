@@ -238,8 +238,8 @@ DIRECTORY{
     uuid ID PK
     uuid owner_id FK
     text public_link
+    uuid parent_id
     text name
-    ltree path
     timestamp created_at  
 }
 
@@ -325,7 +325,8 @@ DIRECTORY_ACCESS | 5.85 млрд.
 1. Проверка доступа пользователя к файлу: SELECT COUNT(*) FROM FILE_ACCESS WHERE user_id = $1 AND file_id = $2;
 2. Проверка доступа пользователя к директории: SELECT mode FROM DIRECTORY_ACCESS WHERE user_id = $1 AND directory_id = $2;
 3. Вывод метаинформации о файле: SELECT * FROM FILE_META WHERE ID = $1;
-4. Листинг файлов в директории: 
+4. Листинг файлов в директории: SELECT name, 'directory' AS type, NULL AS size, created_at FROM directory WHERE parent_id = $1 UNION SELECT name, type, size, created_at FROM file_meta WHERE directory_id = $1;
+5. Поиск по файлам и директориям: SELECTF name, 'directory' AS type, NULL AS size, created at FROM directory WHERE  
 ### Индексы
 Для начала определим, какие операции будут происходить наиболее часто. Во-первых, это получение файлов и директорий конкретного пользователя при его переходе на свою страницу в облаке. Во-вторых, это поиск и получение файлов внутри директории. В-третьих, проверка прав пользователя на доступ к файлу/директории. Тогда нам нужны следующие индексы:
 1. CREATE INDEX idx_file_in_directory ON FILE_META(directory_id); - для получения файлов в директории
