@@ -328,29 +328,34 @@ DIRECTORY_ACCESS | 5.85 млрд.
 2. Проверка доступа пользователя к директории: SELECT mode FROM directory_access WHERE user_id = $1 AND directory_id = $2;
 3. Вывод метаинформации о файле: SELECT * FROM file_meta WHERE ID = $1;
 4. Листинг файлов в директории: SELECT name, 'directory' AS type, NULL AS size, created_at FROM directory WHERE parent_id = $1 UNION SELECT name, type, size, created_at FROM file_meta WHERE directory_id = $1;
-5. Поиск по файлам и директориям: SELECTF name, 'directory' AS type, NULL AS size, created_at FROM directory WHERE owner_id = $1 AND name ILIKE '%' || $2 || '%' UNION SELECT name, type, size, created_at WHERE owner_id = $1 AND name ILIKE '%' || $2 || '%';
+5. Поиск по файлам и директориям: SELECTF name, 'directory' AS type, NULL AS size, created_at FROM directory WHERE owner_id = $1 AND name LIKE '%' || $2 || '%' UNION SELECT name, type, size, created_at WHERE owner_id = $1 AND name LIKE $2 || '%';
 ### Индексы
 Основываясь на описанных выше запросах следующие индексы должны ускорить работу
-1. CREATE INDEX idx_file_access ON file_access(file_id, user_id); - для поиска пользователей, у которых есть доступ к файлу
-2. CREATE INDEX idx_directory_access ON directory_access(directory_id, user_id); - для поиска пользователей, у которых есть доступ к директории 
+1. CREATE INDEX idx_file_access ON file_access(user_id, file_id); - для поиска пользователей, у которых есть доступ к файлу
+2. CREATE INDEX idx_directory_access ON directory_access(user_id, directory_id); - для поиска пользователей, у которых есть доступ к директории 
 3. CREATE INDEX idx_search_file ON file_meta(directory_id); - для листинга файлов внутри директории
-4. CREATE INDEX idx_directory_search ON directory(owner_id, name); - для поиска директорий пользователя
-5. CREATE INDEX idx_file_search ON file_meta(owner_id, name); - для поиска файлов пользователя  
+4. CREATE INDEX idx_directory_search ON directory(parent_id); - для листинга директорий пользователя
+5. CREATE INDEX idx_directory_search ON directory(owner_id); - для поиска директорий пользователя
+6. CREATE INDEX idx_file_search ON file_meta(owner_id); - для поиска файлов пользователя  
 ### Выбор СУБД
 
 
 ### Шардирование 
-Шардировать будем по ID пользователей. Изначально создадим вирутальные шарды на машинах с разными инстанцами БД. Далее с помощью взятия остатка хэша от ID определим, в какой шард попадет пользователь. Все файлы и директории, загружаемые пользователем также будут попадать в этот виртуальный шард. Далее, при горизонтальном масштабировании базы, мы будем переносить виртаульные шарды на новые серверы, тем самым масштабируя систему, не меняя hash функцию.
+Шардировать будем по ID пользователей. Изначально создадим вирутальные шарды на машинах с разными инстанцами БД. Далее с помощью взятия остатка хэша от ID определим, в какой шард попадет пользователь. Все файлы и директории, загружаемые пользователем также будут попадать в этот виртуальный шард. Далее, при горизонтальном масштабировании базы, мы будем переносить виртаульные шарды на новые серверы, тем самым масштабируя систему, не меняя hash функцию. Для работы с шардированием будем использовать Citus. В соответствии с их рекомендации на один физический шард будет приходиться 50 виртуальных шардов
 
-Таблица    | Шардирование |  Резервирование
------------|--------------|----------------
+Для сопоставления ID пользователя и номера шарда будем использовать lookup таблицу:
+
+CREATE TABLE user_shard_lookup (
+    user_id uuid PRIMARY KEY,
+    shard_id int
+);
 
 
 ### Резервирование
 Для данного профиля нагрузок подойдет Master-Slave репликация. У каждого мастера будут по 2 реплики: одна выполняет роль бэкапап и не находится под нагрузкой, в то время как вторая является горячим резервом и дублирует данные на мастере. Так, мы сможем перенести все операции чтения на горячую реплику, тем самым снять часть нагрузки с мастера. Также такая схема позволяет нам снимать бэкапы. 
 
-
-
+### Схема с базами
+![Схема БД](imgs/db_scheme.png)
 
 ## Список источников
 [^1]: [Заявления компании об активных пользователях](https://habr.com/ru/news/711772/)
