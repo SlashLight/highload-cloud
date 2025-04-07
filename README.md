@@ -218,21 +218,20 @@ USER_ACTIVITY{
     enum action_type
     uuid file_id FK
     bigint file_size
-    text region
-    text user_agent
 }
 
 USER_ACTIVITY |{ -- }| USER : actions
 USER_ACTIVITY |{ -- }| FILE_META: actions_with_file
 
 FILE_METRICS{
-    date Date
+    datetime Date
     uuid file_id FK
-    bigint download_count
-    bigint users
+    uuid user_id FK
+    enum action_type
 }
 
-FILE_METRICS ||--|| FILE_META : summary_of_actions
+FILE_METRICS ||--}o FILE_META : summary_of_actions
+FILE_METRICS ||--}o USER : summary_of_actions
 
 DIRECTORY{
     uuid ID PK
