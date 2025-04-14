@@ -366,8 +366,23 @@ erDiagram
         BOOL is_primary
     }
 
-    GROUPS
+    GROUP{
+        UUID group_id PK
+        TEXT name
+        INT replica_size
+        UUID crush_rule FK
+    }
 
+    CRUSH_RULE {
+        UUID rule_id PK
+        TEXT name
+        ENUM failure_domain
+        INT group_count
+    }
+
+FILE_DATA |{--|| FILE_META : contains
+FILE_DATA o{--|| GROUP : files_in_group
+GROUP |{--|| CRUSH_RULE : rule_for_putting_files_in_groups
 ```
 
 ## Список источников
