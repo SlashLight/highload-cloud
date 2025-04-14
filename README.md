@@ -223,16 +223,6 @@ USER_ACTIVITY{
 USER_ACTIVITY |{ -- }| USER : actions
 USER_ACTIVITY |{ -- }| FILE_META: actions_with_file
 
-FILE_METRICS{
-    datetime Date
-    uuid file_id FK
-    uuid user_id FK
-    enum action_type
-}
-
-FILE_METRICS ||--}o FILE_META : summary_of_actions
-FILE_METRICS ||--}o USER : summary_of_actions
-
 DIRECTORY{
     uuid ID PK
     uuid owner_id FK
@@ -335,26 +325,21 @@ DIRECTORY_ACCESS | 5.85 млрд.
 3. CREATE INDEX idx_search_file ON file_meta(directory_id); - для листинга файлов внутри директории
 4. CREATE INDEX idx_directory_search ON directory(parent_id); - для листинга директорий пользователя
 5. CREATE INDEX idx_directory_search ON directory(owner_id); - для поиска директорий пользователя
-6. CREATE INDEX idx_file_search ON file_meta(owner_id); - для поиска файлов пользователя  
-### Выбор СУБД
-
+6. CREATE INDEX idx_file_search ON file_meta(owner_id); - для поиска файлов пользователя
+7. CREATE INDEX idx_user ON user(username); - для поиска пользователя по имени при аутентификации
+8. CREATE INDEX idx_user_activity ON user_activity(event_time, user_id, file_id); - для анализа данных в clickhouse
 
 ### Шардирование 
 Шардировать будем по ID пользователей. Изначально создадим вирутальные шарды на машинах с разными инстанцами БД. Далее с помощью взятия остатка хэша от ID определим, в какой шард попадет пользователь. Все файлы и директории, загружаемые пользователем также будут попадать в этот виртуальный шард. Далее, при горизонтальном масштабировании базы, мы будем переносить виртаульные шарды на новые серверы, тем самым масштабируя систему, не меняя hash функцию. Для работы с шардированием будем использовать Citus. В соответствии с их рекомендации на один физический шард будет приходиться 50 виртуальных шардов
 
 Для сопоставления ID пользователя и номера шарда будем использовать lookup таблицу:
 
-CREATE TABLE user_shard_lookup (
-    user_id uuid PRIMARY KEY,
-    shard_id int
-);
-
 ```mermaid
 erDiagram
 
     USER_SHARD_LOOKUP{
-        uuid user_id PK
         int shard_id
+        int server_id
     }
 ```
 
@@ -364,6 +349,26 @@ erDiagram
 
 ### Схема БД
 ![Схема БД](imgs/db_scheme.png)
+
+### S3-хранилище
+За основу самописного S3-хранилища возьмем Ceph. Каждый кластер будет состоять из 50 групп. По группам файлы будут распределяться с помощью алгоритма Crush, который будет подробнее описан ниже. За каждой группой закрепляется 3 SSD диска, что позволяет обеспечить отказоустойчивость. Так, если один из дисокв выйдет из строя, то данные не будут потеряны. Если из строя выйдут 2 диска одной группы, то операции с этой группой будут приостановлены до тех пор, пока хотя бы один из дисков не вернется в строй. Чтобы репликации не нагружали оснонвую сеть, то каждый кластер S3-хранилища должен быть оснащен еще и внутрненней сетью, которая соединяет все диски. Это нужно для того, чтобы копирование файла на 2 дополнительных диска не создавало задержку в сети, которая взаимодействует с клиентами. 
+
+Перейдем к необходимым таблицам. 
+
+```mermaid
+erDiagram
+
+    FILE_DATA{
+        INT file_id FK
+        TEXT data
+        INT group_id FK
+        INT part_number
+        BOOL is_primary
+    }
+
+    GROUPS
+
+```
 
 ## Список источников
 [^1]: [Заявления компании об активных пользователях](https://habr.com/ru/news/711772/)
